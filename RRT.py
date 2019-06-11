@@ -1,9 +1,11 @@
 ##RRT algorithm basic
 import numpy;
 from .Graph import Graph
+from .Node import Node
 
 
 def buildRRT(n):
+	root =
 	graph = Graph("root")
 	random = sampleFree()
 	nearest = nearestNode(graph, random)
@@ -12,9 +14,7 @@ def buildRRT(n):
 	graph.add_edge({nearest, new})
 
 def sampleFree():
-	x = randomX()
-	y = randomY()
-	sample = {x,y}
+	sample = Node(randomX(), randomY())
 	return sample
 
 def nearestNode(graph, random):       ##using euclidian distance right now
@@ -29,4 +29,6 @@ def nearestNode(graph, random):       ##using euclidian distance right now
 def steer(nearest, random):
 
 	return nearest
+
+def randomX():
 	
