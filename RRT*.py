@@ -6,7 +6,7 @@ import math
 import copy
 
 
-def RRTstar(initial, goal, space, growth, obstacles):
+def RRTstar(initial, goal, space, growth, obstacles, maxIter):
 	"""
 	:param initial: starting [x,y]
 	:param goal: end goal [x.y]
@@ -19,17 +19,15 @@ def RRTstar(initial, goal, space, growth, obstacles):
 	end = Node(goal[0], goal[1])
 	graph = Graph()
 	graph.add_vertex(start)
-	while True:
+	for i in range(0, maxIter):
 		sample = sample_free(space[0], space[1])
-		index = nearest_node(graph, sample)
-		nearest = graph.vertices()[index]
+		nearest = nearest_node(graph, sample)
 		new = steer(nearest, sample, growth)
-
 		#check collision
 		if collision_check(new, obstacles):
 			continue
 
-		near = find_near_nodes(graph, new, min())
+		near = find_near_nodes(graph, new, min(gamma, growth))
 		graph.add_vertex(new)
 
 		minNode = nearest
@@ -61,13 +59,25 @@ def sample_free(minSample, maxSample):
 				random.uniform(minSample, maxSample))
 	return sample
 
-def nearest_node(graph, sample):       ##using L2 euclidian distance right now
+def nearest_node(graph, sample):       ##using L2 Euclidean distance
 	distances = [(node.x - sample.x) ** 2 + (node.y - sample.y)
 			 ** 2 for node in graph.vertices()]
-	nearestIndex = distances.index(min(distances))
-	return nearestIndex
+	index = distances.index(min(distances))
+	nearest = graph.vertices()[index]
+	return nearest
 
-def find_near_nodes(graph, new, radius):
+def find_near_nodes(graph, new):
+	d = 2       # dimension of the space
+	card = len(graph.vertices()) # cardinality of vertex set
+	r = math.pow(math.log(card)/card, 1/d)
+	dlist = [math.sqrt((node.x - new.x) ** 2 +
+			 (node.y - new.y)) ** 2 for node in graph.vertices()]
+	near = [dlist[i] for i in range(0, len(dlist)) if dlist[i] <= r]
+	return near
+
+def rewire(new, near, graph):
+	card = len(graph.vertices()) # cardinality of vertex set
+	for node in near:
 
 
 def steer(nearest, sample, growth):
@@ -101,7 +111,7 @@ def draw_graph(graph, start, end , path):
 
 def main():
 	plt.show()
-	RRTstar([1, 1], [10, 15], [0, 20], .5, None)
+	RRTstar([1, 1], [10, 15], [0, 20], .5, None, 100000)
 
 main()
 

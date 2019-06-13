@@ -6,7 +6,7 @@ import math
 import copy
 
 
-def RRT(initial, goal, space, growth, obstacles):
+def RRT(initial, goal, space, growth, obstacles, maxIter):
 	"""
 	:param initial: starting [x,y]
 	:param goal: end goal [x.y]
@@ -18,10 +18,9 @@ def RRT(initial, goal, space, growth, obstacles):
 	end = Node(goal[0], goal[1])
 	graph = Graph()
 	graph.add_vertex(start)
-	while True:
+	for i in range(0, maxIter):
 		sample = sample_free(space[0], space[1])
-		index = nearest_node(graph, sample)
-		nearest = graph.vertices()[index]
+		nearest = nearest_node(graph, sample)
 		new = steer(nearest, sample, growth)
 
 		#check collision
@@ -56,8 +55,9 @@ def sample_free(minSample, maxSample):
 def nearest_node(graph, sample):       ##using L2 euclidian distance right now
 	distances = [(node.x - sample.x) ** 2 + (node.y - sample.y)
 			 ** 2 for node in graph.vertices()]
-	nearestIndex = distances.index(min(distances))
-	return nearestIndex
+	index = distances.index(min(distances))
+	nearest = graph.vertices()[index]
+	return nearest
 
 def steer(nearest, sample, growth):
 	angle = math.atan2(sample.y - nearest.y, sample.x-nearest.x)
@@ -90,7 +90,7 @@ def draw_graph(graph, start, end , path):
 
 def main():
 	plt.show()
-	RRT([1, 1], [10, 15], [0, 20], .5, None)
+	RRT([1, 1], [10, 15], [0, 20], .5, None, 1000000)
 
 main()
 
