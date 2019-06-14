@@ -3,4 +3,5 @@ class Node(object):
 		self.x = x
 		self.y = y
 		self.parent = None
+		self.cost = 0.0
 

@@ -14,7 +14,10 @@ class Graph(object):
 		"""
 		edge = set(edge)
 		(vertex1, vertex2) = tuple(edge)
-		self.__graph_dict[vertex1].remove(vertex2)
+		if vertex1 in self.__graph_dict:
+			self.__graph_dict[vertex1].remove(vertex2)
+			self.__graph_dict[vertex2].remove(vertex1)
+
 
 	def vertices(self):
 		""" returns the vertices of a graph """
