@@ -129,7 +129,7 @@ class RRT_star():
         # for asymptotical completeness see Kalman 2011. gamma = 1 satisfies
         d = 2  # dimension of the self.space
         nnode = len(self.node_list)
-        r = min(50.0 * ((math.log(nnode) / nnode)) ** (1 / d), self.growth * 5.0)
+        r = min(50.0 * ((math.log(nnode) / nnode)) ** (1 / d), self.growth * 20.0)
         dlist = [(node.x - new_node.x) ** 2 +
                  (node.y - new_node.y) ** 2 for node in self.node_list]
         near_nodes = [self.node_list[dlist.index(i)] for i in dlist if i <= r ** 2]

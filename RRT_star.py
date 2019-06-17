@@ -9,6 +9,7 @@ import copy
 
 
 # maybe excessively tracking by keeping track of graph edges and node parents, same for basic RRT, only small memory waste probably
+
 class RRT_star():
     def __init__(self, start, goal, space, growth, obstacle_list, maxIter):
         """
