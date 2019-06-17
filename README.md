@@ -1,1 +1,2 @@
-# Sampling_Algorithms
+# Sampling Algorithms for Field Estimation
+# Patrick Phillips
