@@ -7,6 +7,8 @@ from matplotlib import pyplot as plt
 class true_field():
 
 	def __init__(self):
+		self.scale = 10000.0  # random scale for graph values zi
+
 		# create random seeded data, some correlation
 		np.random.seed(4213)
 		data1 = np.random.multivariate_normal(mean=[15, 15], cov=[[5, 2], [2, 3]], size=10)
@@ -16,12 +18,11 @@ class true_field():
 		data = np.concatenate((data1, data2, data3, data4), axis=0)
 		x, y = data.T
 
-		# Evaluate a gaussian kde on a regular grid of nbins x nbins over data extents
-		nbins = 300
+		# Evaluate a gaussian kde on a regular grid of num_points x num_points
+		num_points = 300
 		self.k = kde.gaussian_kde([x, y])
-
-		self.xi, self.yi = np.mgrid[x.min():x.max():nbins * 1j, y.min():y.max():nbins * 1j]
-		self.zi = 10000.0 * self.k(np.vstack([self.xi.flatten(), self.yi.flatten()]))
+		self.xi, self.yi = np.mgrid[x.min():x.max():num_points * 1j, y.min():y.max():num_points * 1j]
+		self.zi = self.scale * self.k(np.vstack([self.xi.flatten(), self.yi.flatten()]))
 
 		# Make the plot
 		# plt.show()
@@ -36,17 +37,17 @@ class true_field():
 	def draw(self, plt):
 		plt.pcolormesh(self.xi, self.yi, self.zi.reshape(self.xi.shape))
 		plt.colorbar()
-		plt.show()
 
-	def get_measurement(self, x, y):
-		return self.k.evaluate((x, y))
+	def get_measurement(self, locations):
+		return (self.scale * self.k.evaluate(locations)).flatten() 
 
 	def get_covariance(self):
 		return self.k.covariance
-
-
-def main():
-	field = true_field()
-	field.draw(plt)
-
-main()
+#
+#
+# def main():
+# 	field = true_field()
+# 	field.draw(plt)
+# 	plt.show()
+#
+# main()

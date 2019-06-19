@@ -7,10 +7,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-class RRT_star():
+class RRT_star:
 	# Basic RRT* algorithm using distance as cost function
 
-	def __init__(self, start, end, space, obstacles, growth=0.5, max_iter=500, end_sample_percent=10):
+	def __init__(self, start, end, space, obstacles, growth=0.5, max_iter=500, end_sample_percent=15):
 		"""
 
 		:param start: [x,y] starting location
@@ -176,10 +176,11 @@ class RRT_star():
 		# returns distance between two nodes
 		return math.sqrt((node2.x - node1.x) ** 2 + (node2.y - node1.y) ** 2)
 
+	def cost(self, node1, node2):
+		return node1.cost+node2.cost+100000000000
+
 	def draw_graph(self):
-
 		plt.clf()
-
 		for node in self.node_list:
 			plt.plot(node.x, node.y, "yH")
 			if node.parent is not None:
@@ -189,22 +190,26 @@ class RRT_star():
 		for (x, y, side) in self.obstacles:
 			plt.plot(x, y, "sk", ms=8 * side)
 
+		# draw field
+		true_field1 = true_field()
+		true_field1.draw(plt)
+
 		plt.plot(self.start.x, self.start.y, "oy")
 		plt.plot(self.end.x, self.end.y, "or")
 		plt.axis([0, 30, 0, 30])
 		plt.grid(True)
 		plt.title("RRT* (distance cost function)")
-		plt.pause(0.01)
+		plt.pause(0.01) # need for animation
 
 
 def main():
 
 	# squares of [x,y,side length]
 	obstacles = [
-		(14, 17, 5),
+		(15, 17, 5),
 		(4, 10, 4),
 		(7, 23, 3),
-		(19, 12, 5),
+		(22, 12, 5),
 		(9, 15, 4)]
 
 	# calling RRT*
@@ -215,7 +220,6 @@ def main():
 	rrt_star.draw_graph()
 	plt.plot([node.x for node in path], [node.y for node in path], '-r')
 	plt.grid(True)
-	plt.pause(0.01)  # Need for Mac
 	plt.show()
 
 
