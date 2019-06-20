@@ -24,9 +24,9 @@ class GMRF_Regression:
 		self.grid = grid
 		self.f = f
 		self.var = var
-		#  grid.shape = num dimensions, first dimension length, second dimension length...
-		self.rows = grid.shape[1]
-		self.cols = grid.shape[2]
+		#  grid.shape = first dimension length, second dimension length..., num dimensions
+		self.rows = grid.shape[0]
+		self.cols = grid.shape[1]
 		n = self.rows * self.cols
 		p = len(self.f)
 
@@ -34,7 +34,7 @@ class GMRF_Regression:
 		k = self.theta[1]
 		a = k ** 2 + 4
 		self.precision = np.zeros((n, n))
-		self.b = np.zeros(n + p)
+		self.b = np.zeros(n + p).reshape(905, 1)
 
 		for i in range(0, n):
 			for j in range(0, n):
@@ -82,20 +82,14 @@ class GMRF_Regression:
 		for k in range(0, len(locations)):
 
 			phi_k = self.compute_phi(locations[k], self.grid)
-			print(measurements[k])
-			print("at location: ", locations[k])
+			# print(measurements[k])
+			# print("at location: ", locations[k])
 			self.b = self.b + phi_k.T * measurements[k]
 			self.precision = self.precision + 1 / self.var * phi_k.T @ phi_k
-
-			h = np.linalg.inv(self.precision) @ phi_k.T
-
-			# print("shape phi: ", phi_k.shape)
-			# print("shape precision: ", np.linalg.inv(self.precision).shape)
-			# print("shape h : ", h.shape)
+			h = np.linalg.solve(self.precision, phi_k.T)
 
 			self.cov_diag = self.cov_diag - (h @ h.T) / (self.var + phi_k @ h)
-		mu = self.precision @ self.b
-		print(mu.shape)
+		mu = np.linalg.inv(self.precision) @ self.b
 		return mu
 
 	def compute_phi(self, location, grid):
@@ -106,7 +100,7 @@ class GMRF_Regression:
 		:return: phi
 		"""
 		x, y = location[0], location[1]
-		grid_spacing = grid[1][1][2] - grid[1][1][1]
+		grid_spacing = grid[1][2][1] - grid[1][1][1]
 		a = grid_spacing
 		b = grid_spacing
 
@@ -145,27 +139,39 @@ class GMRF_Regression:
 
 
 def main():
-	field = true_field()
-	# a = np.array([[1, 2], [3, 4]])
-	# b = np.array([[5, 6], [7, 8]])
-	# print(np.concatenate((a, b), axis=1))
+	num_points = 30   # dimension of one side of grid
+	field = true_field(num_points)
 	x, y = np.mgrid[0:30:1, 0:30:1]
-	grid = np.array([x, y])
+	grid = np.dstack((x, y))
+	grid_points = grid.reshape(900, 2)
 
 	gmrf = GMRF_Regression(theta=[1, 1], grid=grid, f=[1, 1, 1, 1, 1], var=5)
 
-	locations = np.array([(1.3, 1.5), (2.5, 2.2), (3, 3), (4, 4), (5, 5)])
+	locations = np.array(grid_points)
 	measurements = field.get_measurement(locations.T)  # measurements
-	mus=gmrf.regression_update(locations, measurements)
+	mu = gmrf.regression_update(locations, measurements)
 
-	plt.subplot(211)
+	plt.subplot(2, 1, 1)
+	plt.title("true field")
 	field.draw(plt)
-	plt.subplot(212)
+	plt.subplot(2, 1, 2)
+	plt.title("learned field")
 
-	rv = multivariate_normal(mus, gmrf.cov)
-	plt.pcolormesh(self.xi, self.yi, self.zi.reshape(self.xi.shape))
+	z = np.zeros((30, 30))
+	for [xi, yi] in grid_points:
+		z[xi][yi] = mu[gmrf.cols * yi + xi]
 
-	#plt.subplots_adjust(bottom=0.1, right=0.8, top=0.9)
+		# FOR VALUE COMPARISONS AT GRID POINTS
+	# for i in range(0, len(field.xi)):
+	# 	for j in range(0, len(field.xi)):
+	# 		print(field.xi[i][j], field.yi[i][j], field.zi.reshape(field.xi.shape)[i][j])
+	# print("NOW THE OTHER ONE")
+	# for i in range(0, len(x)):
+	# 	for j in range(0, len(field.xi)):
+	# 		print(x[i][j], y[i][j], z.reshape(x.shape)[i][j])
+
+	plt.pcolormesh(x, y, z.reshape(x.shape))
+	plt.colorbar()
 	plt.show()
 
 main()

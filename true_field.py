@@ -6,11 +6,11 @@ from matplotlib import pyplot as plt
 
 class true_field():
 
-	def __init__(self):
+	def __init__(self, num_points):
 		self.scale = 10000.0  # random scale for graph values zi
 
 		# create random seeded data, some correlation
-		np.random.seed(4213)
+		np.random.seed(2712)
 		data1 = np.random.multivariate_normal(mean=[15, 15], cov=[[5, 2], [2, 3]], size=10)
 		data2 = np.random.multivariate_normal(mean=[25, 5], cov=[[8, 2], [2, 7]], size=25)
 		data3 = np.random.multivariate_normal(mean=[3, 15], cov=[[3, 2], [2, 4]], size=25)
@@ -19,9 +19,8 @@ class true_field():
 		x, y = data.T
 
 		# Evaluate a gaussian kde on a regular grid of num_points x num_points
-		num_points = 300
 		self.k = kde.gaussian_kde([x, y])
-		self.xi, self.yi = np.mgrid[x.min():x.max():num_points * 1j, y.min():y.max():num_points * 1j]
+		self.xi, self.yi = np.mgrid[0:30:1, 0:30:1]
 		self.zi = self.scale * self.k(np.vstack([self.xi.flatten(), self.yi.flatten()]))
 
 		# Make the plot
@@ -43,8 +42,8 @@ class true_field():
 
 	def get_covariance(self):
 		return self.k.covariance
-#
-#
+
+
 # def main():
 # 	field = true_field()
 # 	field.draw(plt)
