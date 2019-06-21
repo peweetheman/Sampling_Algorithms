@@ -12,7 +12,6 @@ class RRT_star:
 
 	def __init__(self, start, end, space, obstacles, growth=0.5, max_iter=500, end_sample_percent=15):
 		"""
-
 		:param start: [x,y] starting location
 		:param end: [x,y[ ending location
 		:param space: [min,max] bounds on square space
@@ -65,7 +64,7 @@ class RRT_star:
 		# take nearest_node and expand in direction of sample
 		angle = math.atan2(sample.y - nearest_node.y, sample.x - nearest_node.x)
 		new_node = Node(sample.x, sample.y)
-		currentDistance = self.dist(sample, nearest_node)
+		currentDistance = dist(sample, nearest_node)
 		# find a point within growth of nearest_node, and closest to sample
 		if currentDistance <= self.growth:
 			pass
@@ -82,9 +81,9 @@ class RRT_star:
 			return
 		dlist = []
 		for near_node in near_nodes:
-			dist = self.dist(new_node, near_node)
+			dis = dist(new_node, near_node)
 			if self.check_collision_path(near_node, new_node):
-				dlist.append(near_node.cost + dist)
+				dlist.append(near_node.cost + dis)
 			else:
 				dlist.append(float("inf"))
 
@@ -146,12 +145,12 @@ class RRT_star:
 
 	def check_collision_path(self, node1, node2):
 		# check for collision on path from node1 to node2
-		dist = self.dist(node1, node2)
+		dis = dist(node1, node2)
 		dx = node2.x - node1.x
 		dy = node2.y - node1.y
 		angle = math.atan2(dy, dx)
 		temp_node = copy.deepcopy(node1)
-		for i in range(int(dist / self.growth)):
+		for i in range(int(dis / self.growth)):
 			temp_node.x += self.growth * math.cos(angle)
 			temp_node.y += self.growth * math.sin(angle)
 			if not self.check_collision(temp_node, self.obstacles):
@@ -168,16 +167,12 @@ class RRT_star:
 		return True  # safe
 
 	def nearest_node(self, node_list, sample):
-		dlist = [self.dist(node, sample) for node in node_list]
+		dlist = [dist(node, sample) for node in node_list]
 		min_node = self.node_list[dlist.index(min(dlist))]
 		return min_node
 
-	def dist(self, node1, node2):
-		# returns distance between two nodes
-		return math.sqrt((node2.x - node1.x) ** 2 + (node2.y - node1.y) ** 2)
-
 	def cost(self, node1, node2):
-		return node1.cost+node2.cost+100000000000
+		return node1.cost+node2.cost
 
 	def draw_graph(self):
 		plt.clf()
@@ -191,7 +186,7 @@ class RRT_star:
 			plt.plot(x, y, "sk", ms=8 * side)
 
 		# draw field
-		true_field1 = true_field()
+		true_field1 = true_field(1)
 		true_field1.draw(plt)
 
 		plt.plot(self.start.x, self.start.y, "oy")
@@ -199,11 +194,15 @@ class RRT_star:
 		plt.axis([0, 30, 0, 30])
 		plt.grid(True)
 		plt.title("RRT* (distance cost function)")
-		plt.pause(0.01) # need for animation
+		plt.pause(0.01)   # need for animation
+
+
+def dist(node1, node2):
+	# returns distance between two nodes
+	return math.sqrt((node2.x - node1.x) ** 2 + (node2.y - node1.y) ** 2)
 
 
 def main():
-
 	# squares of [x,y,side length]
 	obstacles = [
 		(15, 17, 5),
