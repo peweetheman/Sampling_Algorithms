@@ -4,6 +4,7 @@ import random
 import math
 import copy
 import numpy as np
+import time
 import matplotlib.pyplot as plt
 
 
@@ -20,8 +21,8 @@ class RRT_star:
 		:param max_iter: max number of iterations for algorithm
 		:param end_sample_percent: percent chance to get sample from goal location
 		"""
-		self.start = Node(start[0], start[1])
-		self.end = Node(end[0], end[1])
+		self.start = Node(start)
+		self.end = Node(end)
 		self.space = space
 		self.growth = growth
 		self.end_sample_percent = end_sample_percent
@@ -32,7 +33,7 @@ class RRT_star:
 		self.node_list = [self.start]
 		for i in range(self.max_iter):
 			sample = self.get_sample()
-			nearest_node = self.nearest_node(self.node_list, sample)
+			nearest_node = self.nearest_node(sample)
 			new_node = self.steer(sample, nearest_node)
 
 			if self.check_collision(new_node, self.obstacles):
@@ -53,24 +54,26 @@ class RRT_star:
 	def get_sample(self):
 
 		if random.randint(0, 100) > self.end_sample_percent:
-			sample = Node(random.uniform(self.space[0], self.space[1]),
-						  random.uniform(self.space[0], self.space[1]))
+			sample = Node([random.uniform(self.space[0], self.space[1]),
+						  random.uniform(self.space[0], self.space[1])])
 		else:  # end point sampling
-			sample = Node(self.end.x, self.end.y)
+			sample = Node([self.end.pose[0], self.end.pose[1]])
 
 		return sample
 
 	def steer(self, sample, nearest_node):
 		# take nearest_node and expand in direction of sample
-		angle = math.atan2(sample.y - nearest_node.y, sample.x - nearest_node.x)
-		new_node = Node(sample.x, sample.y)
+		vec = np.array((sample.pose[0] - nearest_node.pose[0], sample.pose[1] - nearest_node.pose[1]))
+		unit_vec = vec / np.linalg.norm(vec)
+		new_node = Node([sample.pose[0], sample.pose[1]])
 		currentDistance = dist(sample, nearest_node)
 		# find a point within growth of nearest_node, and closest to sample
 		if currentDistance <= self.growth:
 			pass
 		else:
-			new_node.x = nearest_node.x + self.growth * math.cos(angle)
-			new_node.y = nearest_node.y + self.growth * math.sin(angle)
+			new_node.pose[0] = nearest_node.pose[0] + self.growth * unit_vec[0]
+			new_node.pose[1] = nearest_node.pose[1] + self.growth * unit_vec[1]
+
 		new_node.cost = float("inf")
 		new_node.parent = None
 		return new_node
@@ -98,7 +101,7 @@ class RRT_star:
 
 	def get_best_last_node(self):
 
-		to_goal_distances = [self.calc_dist_to_end(node.x, node.y) for node in self.node_list]
+		to_goal_distances = [self.calc_dist_to_end(node.pose[0], node.pose[1]) for node in self.node_list]
 		endinds = [to_goal_distances.index(i) for i in to_goal_distances if i <= self.growth]
 
 		if not endinds:
@@ -117,7 +120,7 @@ class RRT_star:
 		return path
 
 	def calc_dist_to_end(self, x, y):
-		return np.linalg.norm([x - self.end.x, y - self.end.y])
+		return np.linalg.norm([x - self.end.pose[0], y - self.end.pose[1]])
 
 	def get_near_nodes(self, new_node):
 		# gamma_star = 2(1+1/d) ** (1/d) volume(free)/volume(total) ** 1/d and we need gamma > gamma_star
@@ -125,15 +128,15 @@ class RRT_star:
 		d = 2  # dimension of the self.space
 		nnode = len(self.node_list)
 		r = min(50.0 * ((math.log(nnode) / nnode)) ** (1 / d), self.growth * 20.0)
-		dlist = [(node.x - new_node.x) ** 2 +
-				 (node.y - new_node.y) ** 2 for node in self.node_list]
-		near_nodes = [self.node_list[dlist.index(i)] for i in dlist if i <= r ** 2]
+		dlist = [(node.pose[0] - new_node.pose[0]) ** 2 +
+				 (node.pose[1] - new_node.pose[1]) ** 2 for node in self.node_list]
+		near_nodes = [self.node_list[dlist.index(d)] for d in dlist if d <= r]
 		return near_nodes
 
 	def rewire(self, new_node, near_nodes):
 		for near_node in near_nodes:
-			dx = new_node.x - near_node.x
-			dy = new_node.y - near_node.y
+			dx = new_node.pose[0] - near_node.pose[0]
+			dy = new_node.pose[1] - near_node.pose[1]
 			d = math.sqrt(dx ** 2 + dy ** 2)
 
 			scost = new_node.cost + d
@@ -146,13 +149,13 @@ class RRT_star:
 	def check_collision_path(self, node1, node2):
 		# check for collision on path from node1 to node2
 		dis = dist(node1, node2)
-		dx = node2.x - node1.x
-		dy = node2.y - node1.y
+		dx = node2.pose[0] - node1.pose[0]
+		dy = node2.pose[1] - node1.pose[1]
 		angle = math.atan2(dy, dx)
 		temp_node = copy.deepcopy(node1)
 		for i in range(int(dis / self.growth)):
-			temp_node.x += self.growth * math.cos(angle)
-			temp_node.y += self.growth * math.sin(angle)
+			temp_node.pose[0] += self.growth * math.cos(angle)
+			temp_node.pose[1] += self.growth * math.sin(angle)
 			if not self.check_collision(temp_node, self.obstacles):
 				return False
 
@@ -160,49 +163,52 @@ class RRT_star:
 
 	def check_collision(self, node, obstacles):
 		for (x, y, side) in obstacles:
-			if ((node.x > x - .8 * side / 2) & (node.x < x + .8 * side / 2) & (node.y > y - side / 2) & (
-					node.y < y + side / 2)):
+			if ((node.pose[0] > x - .8 * side / 2) & (node.pose[0] < x + .8 * side / 2) & (node.pose[1] > y - side / 2) & (
+					node.pose[1] < y + side / 2)):
 				return False  # collision
 
 		return True  # safe
 
-	def nearest_node(self, node_list, sample):
-		dlist = [dist(node, sample) for node in node_list]
+	def nearest_node(self, sample):
+		dlist = [dist(node, sample) for node in self.node_list]
 		min_node = self.node_list[dlist.index(min(dlist))]
 		return min_node
 
 	def cost(self, node1, node2):
-		return node1.cost+node2.cost
+		return 0
 
 	def draw_graph(self):
 		plt.clf()
 		for node in self.node_list:
-			plt.plot(node.x, node.y, "yH")
+			plt.plot(node.pose[0], node.pose[1], "yH")
+			#plt.text(node.pose[0], node.pose[1], str(node.cost), color="red", fontsize=12)
+
 			if node.parent is not None:
-				plt.plot([node.x, node.parent.x], [
-					node.y, node.parent.y], "-k")
+				plt.plot([node.pose[0], node.parent.pose[0]], [
+					node.pose[1], node.parent.pose[1]], "-k")
 
 		for (x, y, side) in self.obstacles:
 			plt.plot(x, y, "sk", ms=8 * side)
 
 		# draw field
-		true_field1 = true_field(1)
-		true_field1.draw(plt)
+		#true_field1 = true_field(1)
+		#true_field1.draw(plt)
 
-		plt.plot(self.start.x, self.start.y, "oy")
-		plt.plot(self.end.x, self.end.y, "or")
+		plt.plot(self.start.pose[0], self.start.pose[1], "oy")
+		plt.plot(self.end.pose[0], self.end.pose[1], "or")
 		plt.axis([0, 30, 0, 30])
 		plt.grid(True)
 		plt.title("RRT* (distance cost function)")
-		plt.pause(0.01)   # need for animation
+		plt.pause(0.001)   # need for animation
 
 
 def dist(node1, node2):
 	# returns distance between two nodes
-	return math.sqrt((node2.x - node1.x) ** 2 + (node2.y - node1.y) ** 2)
+	return math.sqrt((node2.pose[0] - node1.pose[0]) ** 2 + (node2.pose[1] - node1.pose[1]) ** 2)
 
 
 def main():
+	start_time = time.time()
 	# squares of [x,y,side length]
 	obstacles = [
 		(15, 17, 5),
@@ -217,8 +223,10 @@ def main():
 
 	# plotting code
 	rrt_star.draw_graph()
-	plt.plot([node.x for node in path], [node.y for node in path], '-r')
+	if path is not None:
+		plt.plot([node.pose[0] for node in path], [node.pose[1] for node in path], '-r')
 	plt.grid(True)
+	print("--- %s seconds ---" % (time.time() - start_time))
 	plt.show()
 
 

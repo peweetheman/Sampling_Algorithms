@@ -34,7 +34,7 @@ class true_field():
 		# plt.pcolormesh(self.xi, self.yi, self.zi.reshape(self.xi.shape), cmap=plt.cm.Greens_r)
 
 	def draw(self, plt):
-		plt.pcolormesh(self.xi, self.yi, self.zi.reshape(self.xi.shape))
+		plt.contourf(self.xi, self.yi, self.zi.reshape(self.xi.shape))
 		plt.colorbar()
 
 	def get_measurement(self, locations):

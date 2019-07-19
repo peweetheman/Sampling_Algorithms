@@ -1,204 +1,228 @@
-from Graph import Graph
-from Node import Node
+from true_field import true_field
 import random
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
-import time
 import math
 import copy
+import numpy as np
+import time
+import matplotlib.pyplot as plt
+from Node import Node
+
+class RRT_star:
+	# Basic RRT* algorithm using distance as cost function
+
+	def __init__(self, start, end, space, obstacles, growth=1.0, max_iter=500, end_sample_percent=15):
+		"""
+		:param start: [x,y] starting location
+		:param end: [x,y[ ending location
+		:param space: [min,max] bounds on square space
+		:param obstacles: list of square obstacles
+		:param growth: size of growth each new sample
+		:param max_iter: max number of iterations for algorithm
+		:param end_sample_percent: percent chance to get sample from goal location
+		"""
+		self.start = Node(start)
+		self.end = Node(end)
+		self.space = space
+		self.growth = growth
+		self.end_sample_percent = end_sample_percent
+		self.max_iter = max_iter
+		self.obstacles = obstacles
+
+	def rrt_star_algorithm(self):
+		self.node_list = [self.start]
+		for i in range(self.max_iter):
+			sample = self.get_sample()
+			nearest_node = self.nearest_node(self.node_list, sample)
+			new_node = self.steer(sample, nearest_node)
+
+			if self.check_collision(new_node, self.obstacles):
+				near_nodes = self.get_near_nodes(new_node)
+				self.set_parent(new_node, near_nodes)
+				self.node_list.append(new_node)
+				self.rewire(new_node, near_nodes)
+			# draw added edges
+			# self.draw_graph()
+
+		# generate path
+		last_node = self.get_best_last_node()
+		if last_node is None:
+			return None
+		path = self.get_path(last_node)
+		return path
+
+	def get_sample(self):
+
+		if random.randint(0, 100) > self.end_sample_percent:
+			sample = Node([random.uniform(self.space[0], self.space[1]),
+						  random.uniform(self.space[0], self.space[1])])
+		else:  # end point sampling
+			sample = Node(self.end.pose)
+
+		return sample
+
+	def steer(self, sample, nearest_node):
+		# take nearest_node and expand in direction of sample
+		angle = math.atan2(sample.pose[1] - nearest_node.pose[1], sample.pose[0] - nearest_node.pose[0])
+		new_node = Node([sample.pose[0], sample.pose[1]])
+		currentDistance = dist(sample, nearest_node)
+		# find a point within growth of nearest_node, and closest to sample
+		if currentDistance <= self.growth:
+			pass
+		else:
+			new_node.pose[0] = nearest_node.pose[0] + self.growth * math.cos(angle)
+			new_node.pose[1] = nearest_node.pose[1] + self.growth * math.sin(angle)
+		new_node.cost = float("inf")
+		new_node.parent = None
+		return new_node
+
+	def set_parent(self, new_node, near_nodes):
+		# connects new_node along a minimum cost(distance) path
+		if not near_nodes:
+			return
+		dlist = []
+		for near_node in near_nodes:
+			dis = dist(new_node, near_node)
+			if self.check_collision_path(near_node, new_node):
+				dlist.append(near_node.cost + dis)
+			else:
+				dlist.append(float("inf"))
+
+		mincost = min(dlist)
+		min_node = near_nodes[dlist.index(mincost)]
+
+		if mincost == float("inf"):
+			print("mincost is inf")
+			return
+		new_node.cost = mincost
+		new_node.parent = min_node
+
+	def get_best_last_node(self):
+
+		to_goal_distances = [self.calc_dist_to_end(node.pose[0], node.pose[1]) for node in self.node_list]
+		endinds = [to_goal_distances.index(i) for i in to_goal_distances if i < self.growth]
+
+		if not endinds:
+			return None
+		mincost = min([self.node_list[i].cost for i in endinds])
+		for i in endinds:
+			if self.node_list[i].cost == mincost:
+				return self.node_list[i]
+		return None
+
+	def get_path(self, last_node):
+		path = [last_node]
+		while last_node.parent is not None:
+			path.append(last_node.parent)
+			last_node = last_node.parent
+		return path
+
+	def calc_dist_to_end(self, x, y):
+		return np.linalg.norm([x - self.end.pose[0], y - self.end.pose[1]])
+
+	def get_near_nodes(self, new_node):
+		# gamma_star = 2(1+1/d) ** (1/d) volume(free)/volume(total) ** 1/d and we need gamma > gamma_star
+		# for asymptotical completeness see Kalman 2011. gamma = 1 satisfies
+		d = 2  # dimension of the self.space
+		nnode = len(self.node_list)
+		r = min(50.0 * ((math.log(nnode) / nnode)) ** (1 / d), self.growth * 20.0)
+		dlist = [dist(new_node, node) for node in self.node_list]
+		near_nodes = [self.node_list[dlist.index(d)] for d in dlist if d <= r]
+		return near_nodes
+
+	def rewire(self, new_node, near_nodes):
+		for near_node in near_nodes:
+			dx = new_node.pose[0] - near_node.pose[0]
+			dy = new_node.pose[1] - near_node.pose[1]
+			d = math.sqrt(dx ** 2 + dy ** 2)
+
+			scost = new_node.cost + d
+
+			if near_node.cost > scost:
+				if self.check_collision_path(near_node, new_node):
+					near_node.parent = new_node
+					near_node.cost = scost
+
+	def check_collision_path(self, node1, node2):
+		# check for collision on path from node1 to node2
+		dis = dist(node1, node2)
+		dx = node2.pose[0] - node1.pose[0]
+		dy = node2.pose[1] - node1.pose[1]
+		angle = math.atan2(dy, dx)
+		temp_node = copy.deepcopy(node1)
+		for i in range(int(dis / self.growth)):
+			temp_node.pose[0] += self.growth * math.cos(angle)
+			temp_node.pose[1] += self.growth * math.sin(angle)
+			if not self.check_collision(temp_node, self.obstacles):
+				return False
+
+		return True
+
+	def check_collision(self, node, obstacles):
+		for (x, y, side) in obstacles:
+			if ((node.pose[0] > x - .8 * side / 2) & (node.pose[0] < x + .8 * side / 2) & (node.pose[1] > y - side / 2) & (
+					node.pose[1] < y + side / 2)):
+				return False  # collision
+
+		return True  # safe
+
+	def nearest_node(self, node_list, sample):
+		dlist = [dist(node, sample) for node in node_list]
+		min_node = self.node_list[dlist.index(min(dlist))]
+		return min_node
+
+	def cost(self, node1, node2):
+		return 0
+
+	def draw_graph(self):
+		plt.clf()
+		for node in self.node_list:
+			plt.plot(node.pose[0], node.pose[1], "yH")
+			if node.parent is not None:
+				plt.plot([node.pose[0], node.parent.pose[0]], [
+					node.pose[1], node.parent.pose[1]], "-k")
+
+		for (x, y, side) in self.obstacles:
+			plt.plot(x, y, "sk", ms=8 * side)
+
+		# draw field
+		true_field1 = true_field(1)
+		true_field1.draw(plt)
+
+		plt.plot(self.start.pose[0], self.start.pose[1], "oy")
+		plt.plot(self.end.pose[0], self.end.pose[1], "or")
+		plt.axis([0, 30, 0, 30])
+		plt.grid(True)
+		plt.title("RRT* (distance cost function)")
+		plt.pause(0.01)   # need for animation
 
 
-# maybe excessively tracking by keeping track of graph edges and node parents, same for basic RRT, only small memory waste probably
-
-class RRT_star():
-    def __init__(self, start, goal, space, growth, obstacle_list, maxIter):
-        """
-        :param start:
-        :param goal:
-        :param space:
-        :param growth:
-        :param obstacle_list:
-        :param maxIter:
-        """
-        self.start = Node(start[0], start[1])
-        self.goal = Node(goal[0], goal[1])
-        self.goal_percent = 5
-        self.space = space
-        self.growth = growth
-        self.obstacle_list = obstacle_list
-        self.maxIter = maxIter
-        self.graph = Graph()
-        self.graph.add_vertex(self.start)
-
-    def plan(self):
-        for i in range(0, self.maxIter):
-            sample = self.sample_free()
-            self.draw_graph(sample)
-            nearest = self.nearest_node(sample)
-            self.draw_graph(nearest)
-            new_node = self.steer(nearest, sample)
-
-            if self.collision_check(new_node):
-                continue
-
-            near = self.find_near_nodes(new_node)
-            new_node = self.connect_min_path(new_node, near)
-            self.graph.add_vertex(new_node)
-            self.rewire(new_node, near)
-        path = self.get_path()
-        return self.graph, path
-
-    def sample_free(self):
-        if random.randint(0, 100) < self.goal_percent:
-            sample = Node(self.goal.x, self.goal.y)
-        else:
-            minSample = self.space[0]  # min bound on space
-            maxSample = self.space[1]  # max bound on space
-            sample = Node(random.uniform(minSample, maxSample),
-                      random.uniform(minSample, maxSample))
-        return sample
-
-    def nearest_node(self, sample):  ##using L2 Euclidean distance
-        distances = [(node.x - sample.x) ** 2 + (node.y - sample.y)
-                     ** 2 for node in self.graph.vertices()]
-        index = distances.index(min(distances))
-        nearest = self.graph.vertices()[index]
-        return nearest
-
-    def find_near_nodes(self, new_node):
-        # gamma_star = 2(1+1/d) ** (1/d) volume(free)/volume(total) ** 1/d and we need gamma > gamma_star
-        # for asymptotical completeness see Kalman 2011. gamma = 1 satisfies
-        d = 2  # dimension of the self.space
-        card = len(self.graph.vertices())  # cardinality of vertex set
-        r = min(math.pow(math.log(card) / card, 1 / d), self.growth)
-        cost_list = [self.cost(node, new_node) for node in self.graph.vertices()]
-        near_indices = [cost_list.index(dist) for dist in cost_list if dist <= r]
-        near = [self.graph.vertices()[i] for i in near_indices]
-        return near
-
-
-    def connect_min_path(self, new_node, near):
-        if not near:
-            print("not near")
-            return new_node
-
-        cost_list = []
-        for near_node in near:
-            # angle = math.atan2(dy, dx)
-            new_cost = self.cost(near_node, new_node)
-            if not self.collision_check_on_path(near_node, new_node):
-                cost_list.append(near_node.cost + new_cost)
-            else:
-                cost_list.append(float("inf"))
-        min_cost = min(cost_list)
-        min_node = near[cost_list.index(min_cost)]
-
-        if min_cost == float("inf"):
-            print("mincost is infinity?!? blame Patrick")
-            return new_node
-
-        new_node.cost = min_cost
-        new_node.parent = min_node
-        self.graph.add_edge({min_node, new_node})
-        return new_node
-
-
-    def rewire(self, new_node, near):
-        for near_node in near:
-            if not self.collision_check_on_path(new_node, near_node):
-                if (new_node.cost + self.cost(new_node, near_node) < near_node.cost):
-                    near_node.parent = new_node
-                    near_node.cost = new_node.cost + self.cost(new_node, near_node)
-                    self.graph.remove_edge({near_node.parent, near_node})
-                    self.graph.add_edge({new_node, near_node})
-
-
-    def steer(self, nearest, sample):
-        angle = math.atan2(sample.y - nearest.y, sample.x - nearest.x)
-        new_node = copy.deepcopy(nearest)
-        new_node.x += math.cos(angle) * self.growth
-        new_node.y += math.sin(angle) * self.growth
-        return new_node
-
-
-    def collision_check_on_path(self, node1, node2):
-        temp_node = copy.deepcopy(node1)
-        dy = node2.y - node1.y
-        dx = node2.x - node1.x
-        d = math.sqrt(dx ** 2 + dy ** 2)
-        angle = math.atan2(dy, dx)
-        for i in range(int(d / self.growth)):
-            temp_node.x += self.growth * math.cos(angle)
-            temp_node.y += self.growth * math.sin(angle)
-            if self.collision_check(temp_node):
-                print("collision")
-                return True  # collision
-        return False  # no collision
-
-
-    def collision_check(self, node):
-        for (ox, oy, size) in self.obstacle_list:
-            dx = ox - node.x
-            dy = oy - node.y
-            d = dx * dx + dy * dy
-            if math.sqrt(d) <= size + .3:
-                return True  # collision
-
-        return False  # no collision
-
-
-    def get_path(self):
-        dist2goal = [self.cost(node, self.goal) for node in self.graph.vertices()]
-        goalinds = [dist2goal.index(i) for i in dist2goal if i <= self.growth]
-
-        if not goalinds:
-            return None
-
-        mincost = min([self.graph.vertices()[i].cost for i in goalinds])
-        last = self.graph.vertices().index(mincost)
-
-        path = [[last.x, last.y]]
-        while last.parent is not None:
-            node = last
-            path.append([node.x, node.y])
-            last = node.parent
-        return path
-
-
-    def draw_graph(self, sample = None):
-        plt.clf()
-
-        for (ox, oy, size) in self.obstacle_list:
-            plt.plot(ox, oy, "og", ms=21 * size)
-        if sample is not None:
-            plt.plot(sample.x, sample.y, "^k")
-        for node in self.graph.vertices():
-            plt.plot(node.x, node.y, "yH")
-            if node.parent is not None:
-                plt.plot([node.x, node.parent.x], [
-                    node.y, node.parent.y], "-k")
-
-        plt.plot(self.start.x, self.start.y, "yH")
-        plt.plot(self.goal.x, self.goal.y, "rH")
-        plt.axis([self.space[0], self.space[1], self.space[0], self.space[1]])
-        plt.grid(True)
-        plt.title('RRT*')
-        plt.pause(.01)
-
-    def cost(self, node, new_node):
-        return math.sqrt((node.x - new_node.x) ** 2 + (node.y - new_node.y) ** 2)
+def dist(node1, node2):
+	# returns distance between two nodes
+	return math.sqrt((node2.pose[0] - node1.pose[0]) ** 2 + (node2.pose[1] - node1.pose[1]) ** 2)
 
 
 def main():
-    obstacle_list = [
-        (5, 5, 3),
-    ]  # [x,y,size(radius)]
-    plt.show()
+	start_time = time.time()
+	# squares of [x,y,side length]
+	obstacles = [
+		(15, 17, 5),
+		(4, 10, 4),
+		(7, 23, 3),
+		(22, 12, 5),
+		(9, 15, 4)]
 
-    rrt = RRT_star(start=[1, 1], goal=[20, 15],  space=[0, 30], growth=.5, obstacle_list=obstacle_list, maxIter=1000)
-    graph, path = rrt.plan()
-    print("path length: ", len(path))
-    for i in range(1, len(path)):
-        plt.plot([path[i][0], path[i - 1][0]], [path[i][1], path[i - 1][1]], "-b")
+	# calling RRT*
+	rrt_star = RRT_star(start=[15, 28], end=[15, 5], obstacles=obstacles, space=[0, 30])
+	path = rrt_star.rrt_star_algorithm()
 
-main()
+	# plotting code
+	rrt_star.draw_graph()
+	if path is not None:
+		plt.plot([node.pose[0] for node in path], [node.pose[1] for node in path], '-r')
+	plt.grid(True)
+	print("--- %s seconds ---" % (time.time() - start_time))
+	plt.show()
+
+
+if __name__ == '__main__':
+	main()
